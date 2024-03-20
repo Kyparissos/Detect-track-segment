@@ -76,83 +76,52 @@ model_tracking = YOLO(r'G:\lund\master_thesis\train3\weights\best.pt')
 model_classify = YOLO(r'G:\lund\master_thesis\train2\weights\best.pt')
 
 # Open the video file
-source = cv2.VideoCapture(r"H:\_videos\test3.13\1.mp4")
-fps = int(source.get(cv2.CAP_PROP_FPS))
+source = cv2.VideoCapture(r"G:\lund\master_thesis\Hemimastix\captured1953.mp4")
+# fps = int(source.get(cv2.CAP_PROP_FPS))
 width = int(source.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(source.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 # save output video
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-output_video = cv2.VideoWriter(r"H:\_videos\test3.13\1_label.mp4",
-                               fourcc, fps, (width, height))
+output_video = cv2.VideoWriter(r"G:\lund\master_thesis\Hemimastix\captured1953_label.mp4",
+                               fourcc, 25.0, (width, height))
 
 # Loop through the video frames
-frames = [0] * CONF_SIZE
+frames = [False] * CONF_SIZE
 successes = [0] * CONF_SIZE
 bbox_coordinates = [0] * CONF_SIZE
 dicts = {"-1": [["init"], ["init"]]}
 flags = [False] * 20
 while source.isOpened():
     # Read a frame from the video
-    now_fps = source.get(1)
-    if now_fps < CONF_SIZE:
-       for n in range(0, CONF_SIZE):
-            success0, frame0 = source.read()
-            frames = update_list(frames, frame0)
-            successes = update_list(successes, success0)
+    success0, frame0 = source.read()
+    frames = update_list(frames, frame0)
+    successes = update_list(successes, success0)
 
-            if successes[n]:
-                results_tracking = model_tracking.track(frames[n], conf=0.3, persist=True)
+    if successes[-1]:
+        results_tracking = model_tracking.track(frames[-1], conf=0.3, persist=True)
 
-                if results_tracking[0].boxes.id != None:
-                    ids = results_tracking[0].boxes.id.tolist()
-                    for i in range(0, len(ids)):
-                        # Save the coordinates of the detected bounding boxes
-                        bbox_coordinates = results_tracking[0].boxes.xyxy[i].tolist()
-                        bbox_coordinates = [int(x) for x in bbox_coordinates]
+        if results_tracking[0].boxes.id != None:
+            ids = results_tracking[0].boxes.id.tolist()
+            for i in range(0, len(ids)):
+                # Save the coordinates of the detected bounding boxes
+                bbox_coordinates = results_tracking[0].boxes.xyxy[i].tolist()
+                bbox_coordinates = [int(x) for x in bbox_coordinates]
 
-                        # Crop frame for classification
-                        frame_crop = frames[n][bbox_coordinates[1]:bbox_coordinates[3],
-                                     bbox_coordinates[0]:bbox_coordinates[2]].copy()
+                # Crop frame for classification
+                frame_crop = frames[-1][bbox_coordinates[1]:bbox_coordinates[3],
+                             bbox_coordinates[0]:bbox_coordinates[2]].copy()
 
-                        # Classification
-                        results_classify = model_classify(frame_crop, conf=0.5)  # predict on an image
-                        label = CLASS[results_classify[0].probs.top1]
-                        # prob = round(float(results_classify[0].probs.top1conf), 2)
-                        # whole_label = label + " " + str(prob)
+                # Classification
+                results_classify = model_classify(frame_crop, conf=0.5)  # predict on an image
+                label = CLASS[results_classify[0].probs.top1]
+                # prob = round(float(results_classify[0].probs.top1conf), 2)
+                # whole_label = label + " " + str(prob)
 
-                        dicts, flags = update_dict(dicts, int(ids[i]), label, bbox_coordinates, flags)
-                        if "-1" in dicts:
-                            del dicts["-1"]
-
+                dicts, flags = update_dict(dicts, int(ids[i]), label, bbox_coordinates, flags)
+                if "-1" in dicts:
+                    del dicts["-1"]
     else:
-        success1, frame1 = source.read()
-        frames = update_list(frames, frame1)
-        successes = update_list(successes, success1)
-
-        if successes[-1]:
-            # Tracking moving objects first
-            results_tracking = model_tracking.track(frames[-1], conf=0.3, persist=True)
-
-            if results_tracking[0].boxes.id != None:
-                ids = results_tracking[0].boxes.id.tolist()
-                for i in range(0, len(ids)):
-                    # Save the coordinates of the detected bounding boxes
-                    bbox_coordinates = results_tracking[0].boxes.xyxy[i].tolist()
-                    bbox_coordinates = [int(x) for x in bbox_coordinates]
-
-                    # Crop frame for classification
-                    frame_crop = frames[-1][bbox_coordinates[1]:bbox_coordinates[3],
-                                 bbox_coordinates[0]:bbox_coordinates[2]].copy()
-
-                    # Classification
-                    results_classify = model_classify(frame_crop, conf=0.5)  # predict on an image
-                    label = CLASS[results_classify[0].probs.top1]
-                    # prob = round(float(results_classify[0].probs.top1conf), 2)
-                    # whole_label = label + " " + str(prob)
-
-                    dicts, flags = update_dict(dicts, int(ids[i]), label, bbox_coordinates, flags)
-        else:
             # Break the loop if the end of the video is reached
             break
 
@@ -163,7 +132,7 @@ while source.isOpened():
             label_list = dicts[keys[i]][0]
             bbox_list = dicts[keys[i]][1]
             max_label = max(label_list, key=label_list.count)
-            annotated_frame = draw_bbox(frames[0], max_label, bbox_list[0])
+            annotated_frame = draw_bbox(frames[-1], max_label, bbox_list[-1])
             flags[keys[i]] = False
 
     cv2.namedWindow('Tracking', cv2.WINDOW_NORMAL)
