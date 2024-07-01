@@ -29,71 +29,119 @@ COLOR = (
     (155,211,255)
 )
 
+CONF_SIZE = 12
+
+
+def update_list(lst, nbr):
+    lst = lst[1:]
+    lst.append(nbr)
+    return lst
+
+
+def update_dict(dict, id, label, bbox, flag):
+    flag[id] = True
+    if id not in dict:
+        dict[id] = [[label], [bbox]]
+    elif len(dict[id][0]) < CONF_SIZE:
+        dict[id][0].append(label)
+        dict[id][1].append(bbox)
+    else:
+        del dict[id][0][0]
+        dict[id][0].append(label)
+        del dict[id][1][0]
+        dict[id][1].append(bbox)
+    return dict, flag
+
+def draw_bbox(frame, label, bbox_coordinates):
+    annotated_frame = frame
+    label_index = CLASS.index(label)
+    cv2.rectangle(annotated_frame, (bbox_coordinates[0], bbox_coordinates[1]),
+                  (bbox_coordinates[2], bbox_coordinates[3]),
+                  color=COLOR[label_index], thickness=2)
+
+    cv2.putText(
+        annotated_frame,
+        label,
+        (bbox_coordinates[0], bbox_coordinates[1] - 15),
+        fontFace=cv2.FONT_HERSHEY_TRIPLEX,
+        fontScale=frame.shape[1] / 1000,
+        color=COLOR[label_index],
+        thickness=1
+    )
+    return annotated_frame
+
+
 # Load YOLOv8 models
-model_tracking = YOLO(r'G:\lund\master_thesis\train4\weights\best.pt')
-model_classify = YOLO(r'G:\lund\master_thesis\YOLOv8\runs\classify\train\weights\best.pt')
+model_tracking = YOLO(r'G:\lund\master_thesis\train3\weights\best.pt')
+model_classify = YOLO(r'G:\lund\master_thesis\train2\weights\best.pt')
 
 # Open the video file
-source = cv2.VideoCapture(r"H:\_videos\test3.13\2.mp4")
-fps = int(source.get(cv2.CAP_PROP_FPS))
+source = cv2.VideoCapture(r"G:\lund\master_thesis\Hemimastix\captured1953.mp4")
+# fps = int(source.get(cv2.CAP_PROP_FPS))
 width = int(source.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(source.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 # save output video
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-output_video = cv2.VideoWriter(r"H:\_videos\test3.13\2_label.mp4",
-                               fourcc, fps, (width, height))
+output_video = cv2.VideoWriter(r"G:\lund\master_thesis\Hemimastix\captured1953_label.mp4",
+                               fourcc, 25.0, (width, height))
 
 # Loop through the video frames
+frames = [False] * CONF_SIZE
+successes = [0] * CONF_SIZE
+bbox_coordinates = [0] * CONF_SIZE
+dicts = {"-1": [["init"], ["init"]]}
+flags = [False] * 20
 while source.isOpened():
     # Read a frame from the video
-    success, frame = source.read()
+    success0, frame0 = source.read()
+    frames = update_list(frames, frame0)
+    successes = update_list(successes, success0)
 
-    if success:
-        # Tracking moving objects first
-        results_tracking = model_tracking.track(frame, conf=0.5, persist=True)
+    if successes[-1]:
+        results_tracking = model_tracking.track(frames[-1], conf=0.3, persist=True)
 
-        for i in range(0, len(results_tracking[0].boxes.xyxy)):
-            # Save the coordinates of the detected bounding boxes
-            bbox_coordinates = results_tracking[0].boxes.xyxy[i].tolist()
-            bbox_coordinates = [int(x) for x in bbox_coordinates]
+        if results_tracking[0].boxes.id != None:
+            ids = results_tracking[0].boxes.id.tolist()
+            for i in range(0, len(ids)):
+                # Save the coordinates of the detected bounding boxes
+                bbox_coordinates = results_tracking[0].boxes.xyxy[i].tolist()
+                bbox_coordinates = [int(x) for x in bbox_coordinates]
 
-            # Crop frame for classification
-            frame_crop = frame[bbox_coordinates[1]:bbox_coordinates[3],
-                           bbox_coordinates[0]:bbox_coordinates[2]].copy()
+                # Crop frame for classification
+                frame_crop = frames[-1][bbox_coordinates[1]:bbox_coordinates[3],
+                             bbox_coordinates[0]:bbox_coordinates[2]].copy()
 
-            # Classification
-            results_classify = model_classify(frame_crop, conf=0.5)  # predict on an image
-            label = CLASS[results_classify[0].probs.top1]
-            prob = round(float(results_classify[0].probs.top1conf), 2)
-            whole_label = label + " " + str(prob)
+                # Classification
+                results_classify = model_classify(frame_crop, conf=0.5)  # predict on an image
+                label = CLASS[results_classify[0].probs.top1]
+                # prob = round(float(results_classify[0].probs.top1conf), 2)
+                # whole_label = label + " " + str(prob)
 
-            # Add label and prob to bounding box
-            annotated_frame = frame
-            if prob >= 0.5:
-                cv2.rectangle(annotated_frame, (bbox_coordinates[0], bbox_coordinates[1]), (bbox_coordinates[2], bbox_coordinates[3]),
-                              color=COLOR[results_classify[0].probs.top1], thickness=2)
-
-                cv2.putText(
-                    annotated_frame,
-                    whole_label,
-                    (bbox_coordinates[0], bbox_coordinates[1] - 15),
-                    fontFace=cv2.FONT_HERSHEY_TRIPLEX,
-                    fontScale=frame.shape[1] / 1000,
-                    color=COLOR[results_classify[0].probs.top1],
-                    thickness=1
-                )
-
-        cv2.namedWindow('Tracking', cv2.WINDOW_NORMAL)
-        cv2.imshow("Tracking", frame)
-
-        output_video.write(annotated_frame)
-
-        # Break the loop if 'q' is pressed
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
+                dicts, flags = update_dict(dicts, int(ids[i]), label, bbox_coordinates, flags)
+                if "-1" in dicts:
+                    del dicts["-1"]
     else:
-        # Break the loop if the end of the video is reached
+            # Break the loop if the end of the video is reached
+            break
+
+            # Find the most likely class
+    keys = list(dicts.keys())
+    for i in range(0, len(keys)):
+        if flags[keys[i]] == True:
+            label_list = dicts[keys[i]][0]
+            bbox_list = dicts[keys[i]][1]
+            max_label = max(label_list, key=label_list.count)
+            annotated_frame = draw_bbox(frames[-1], max_label, bbox_list[-1])
+            flags[keys[i]] = False
+
+    cv2.namedWindow('Tracking', cv2.WINDOW_NORMAL)
+    cv2.imshow("Tracking", annotated_frame)
+
+    output_video.write(annotated_frame)
+
+    # Break the loop if 'q' is pressed
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
 # Release the video capture object and close the display window
