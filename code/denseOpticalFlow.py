@@ -60,7 +60,7 @@ def draw_hsv(flow):
     return bgr
 
 
-cap = cv2.VideoCapture(r"D:\jingm\下载\Data\demo\demo-nematode.mp4")
+cap = cv2.VideoCapture(r"D:\jingm\下载\Data\demo\demo-ciliate_label.mp4")
 
 suc, prev = cap.read()
 prevgray = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)

@@ -1,0 +1,118 @@
+from collections import defaultdict, deque
+import cv2
+import supervision as sv
+from ultralytics import YOLO
+from ultralytics import RTDETR
+import pandas as pd
+
+bounding_box_annotator = sv.BoundingBoxAnnotator()
+label_annotator = sv.LabelAnnotator(text_position=sv.Position.TOP_LEFT)
+trace_annotator = sv.TraceAnnotator(trace_length=1000)
+
+model = YOLO(r'D:\Projects\Thesis\models\3.28.1\weights\best.pt')
+video_path=r"D:\jingm\下载\Data\test\1.12.mp4"
+video_info = sv.VideoInfo.from_video_path(video_path)
+frames_generator = sv.get_video_frames_generator(video_path)
+tracker = sv.ByteTrack()
+
+coordinates = defaultdict(lambda: deque(maxlen=video_info.fps))
+coordinates_x = defaultdict(lambda: deque(maxlen=video_info.fps))
+
+classes = (
+    "amoeba",
+    "apusomonas",
+    "ciliate",
+    "cysts",
+    "flagellate",
+    "hypotrich",
+    "monothalamid",
+    "nematode",
+    "snail ciliate"
+)# 9 classes
+
+# classes = (
+#     "amoeba",
+#     "amoeboflagellate",
+#     "apusomonas",
+#     "ciliate",
+#     "cysts",
+#     "flagellate-classical",
+#     "flagellate-hemi",
+#     "hemimastix",
+#     "hypotrich",
+#     "monothalamid",
+#     "nematode",
+#     "snail ciliate"
+# ) # 12 classes 3.14
+frames = []
+locationx=[]
+locationy=[]
+with sv.VideoSink(target_path=r'D:\Projects\Thesis\runs\demo.mp4', video_info=video_info) as sink:
+    for frame in frames_generator:
+        result = model(frame)[0]
+        detections = sv.Detections.from_ultralytics(result)
+        detections = tracker.update_with_detections(detections)
+        points = detections.get_anchors_coordinates(
+            anchor=sv.Position.CENTER)
+        label = []
+        speed = []
+        frames.append(frame)
+        for tracker_id, [x, y] in zip(detections.tracker_id, points):
+            coordinates[tracker_id].append(y)
+            coordinates_x[tracker_id].append(x)
+        for tracker_id in detections.tracker_id:
+            if len(coordinates[tracker_id]) > video_info.fps / 2:
+            # calculate the speed
+                coordinate_start = coordinates[tracker_id][-1]
+                coordinate_end = coordinates[tracker_id][0]
+                distance = abs(coordinate_start - coordinate_end)
+                time = len(coordinates[tracker_id]) / video_info.fps
+                speed.append(str(round(distance / time * 3.6, 2)))
+            else :
+                speed.append('0')
+        
+        # locationx.append(coordinates_x)
+        # locationy.append(coordinates)
+        label=[classes[i] for i in detections.class_id]
+        label_speed=[s + speed for s, speed in zip(label, speed)]
+        annotated_frame = bounding_box_annotator.annotate(
+            scene=frame.copy(),
+            detections=detections)
+        annotated_frame = label_annotator.annotate(
+            scene=annotated_frame,
+            detections=detections,
+            labels=label_speed
+            )
+        annotated_frame = trace_annotator.annotate(
+            scene=annotated_frame,
+            detections=detections)
+        sink.write_frame(frame=annotated_frame)
+    
+    data={'x':coordinates_x,'y':coordinates}
+    df=pd.DataFrame(data)
+    df=df.T
+    print(df)
+    df.to_csv(r'D:\Projects\Thesis\runs\output_data.csv', index=False)
+
+
+# cap = cv2.VideoCapture(r"D:\jingm\下载\Data\protists_test\C3_40X.mp4")
+# model = YOLO(r'D:\Projects\Thesis\models\3.14\best.pt')
+# while cap.isOpened():
+#     success, frame = cap.read()
+#     if success:
+#         result = model(frame)[0]
+#         detections = sv.Detections.from_ultralytics(result)
+#         len(detections)
+
+#         bounding_box_annotator = sv.BoundingBoxAnnotator()
+#         annotated_frame = bounding_box_annotator.annotate(
+#             scene=frame.copy(),
+#             detections=detections
+#         )
+#         # cv2.namedWindow('Tracking', cv2.WINDOW_NORMAL)
+#         # cv2.imshow("Tracking", annotated_frame)
+#     if not success:
+#         break
+#     cv2.imshow('frame', annotated_frame)
+#     if cv2.waitKey(1) & 0xFF == ord('q'):
+#         break

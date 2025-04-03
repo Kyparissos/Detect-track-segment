@@ -34,8 +34,27 @@
 # version = project.version(3)
 # dataset = version.download("yolov8")
 
+# from roboflow import Roboflow
+# rf = Roboflow(api_key="Jxbh0mAHd0jlhrllGGkf")
+# project = rf.workspace("nepri").project("classification-t5fcm")
+# version = project.version(1)
+# dataset = version.download("folder")
+
+
+
+# from roboflow import Roboflow
+# rf = Roboflow(api_key="A8i2KEW7sTvC0WzFBXmv")
+# project = rf.workspace("protist").project("protists-crz5f")
+# version = project.version(2)
+# dataset = version.download("coco")
+
+# rf = Roboflow(api_key="A8i2KEW7sTvC0WzFBXmv")
+# project = rf.workspace("protist").project("protists-crz5f")
+# version = project.version(2)
+# dataset = version.download("yolov8")
+
 from roboflow import Roboflow
-rf = Roboflow(api_key="Jxbh0mAHd0jlhrllGGkf")
-project = rf.workspace("nepri").project("classification-t5fcm")
-version = project.version(1)
+rf = Roboflow(api_key="RqH5kAkc3m1Zuh073Sx7")
+project = rf.workspace("master-thesis-r4ozd").project("classification-0tlkq")
+version = project.version(4)
 dataset = version.download("folder")

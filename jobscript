@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#SBATCH -A NAISS2023-22-151 -p alvis
+#SBATCH --gpus-per-node=A40:4  # We're launching 4 Nvidia A40 GPUs 
+#SBATCH -t 0-15:00:00 
+#SBATCH -J sum
+#SBATCH -o job.%j.out
+
+ml PyTorch-bundle/1.13.1-foss-2022a-CUDA-11.7.0
+
+source yolo/bin/activate
+
+cd /cephyr/NOBACKUP/groups/soilchip/Yolo_V8
+
+yolo task=detect mode=train model=yolov8s.pt data="data.yaml" epochs=50 imgsz=640 plots=True
+
+
+
+
